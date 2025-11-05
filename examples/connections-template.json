@@ -1,0 +1,60 @@
+{
+  "connections": {
+    "local": {
+      "name": "Local Development",
+      "host": "localhost",
+      "port": 27017,
+      "database": "your_database",
+      "options": {
+        "retryWrites": true,
+        "loadBalanced": false,
+        "serverSelectionTimeoutMS": 5000,
+        "connectTimeoutMS": 10000
+      },
+      "notes": "Local MongoDB instance without authentication"
+    },
+    "development": {
+      "name": "Development Environment",
+      "host": "${MONGO_DEV_HOST}",
+      "port": "${MONGO_DEV_PORT}",
+      "database": "${MONGO_DEV_DATABASE}",
+      "username": "${MONGO_DEV_USER}",
+      "password": "${MONGO_DEV_PASS}",
+      "authSource": "${MONGO_DEV_AUTH_SOURCE}",
+      "authMechanism": "SCRAM-SHA-256",
+      "options": {
+        "retryWrites": true,
+        "loadBalanced": false,
+        "serverSelectionTimeoutMS": 5000,
+        "connectTimeoutMS": 10000,
+        "readPreference": "secondary",
+        "directConnection": true
+      },
+      "notes": "Development environment - requires SSH tunnel"
+    },
+    "production": {
+      "name": "Production Environment",
+      "host": "${MONGO_PROD_HOST}",
+      "port": "${MONGO_PROD_PORT}",
+      "database": "${MONGO_PROD_DATABASE}",
+      "username": "${MONGO_PROD_USER}",
+      "password": "${MONGO_PROD_PASS}",
+      "authSource": "${MONGO_PROD_AUTH_SOURCE}",
+      "authMechanism": "SCRAM-SHA-256",
+      "options": {
+        "readPreference": "secondaryPreferred",
+        "directConnection": true,
+        "serverSelectionTimeoutMS": 10000,
+        "connectTimeoutMS": 15000
+      },
+      "notes": "PRODUCTION - requires VPN connection, read-only recommended",
+      "collections": {
+        "users": "User accounts and profiles",
+        "orders": "Customer orders and transactions",
+        "products": "Product catalog",
+        "logs": "Application logs and events"
+      }
+    }
+  },
+  "defaultConnection": "local"
+}
