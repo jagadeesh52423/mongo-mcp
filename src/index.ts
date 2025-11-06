@@ -17,6 +17,7 @@ import { MongoMCPError } from './connections/types.js';
 import { MongoConnectTool } from './tools/connect.js';
 import { MongoExecuteTool } from './tools/execute.js';
 import { MongoCollectionsTool } from './tools/collections.js';
+import { MongoTransferTool } from './tools/transfer.js';
 import { cleanupSafeResponseHandler, getSafeResponseHandler } from './utils/response-handler.js';
 import dotenv from 'dotenv';
 
@@ -30,6 +31,7 @@ class MongoMCPServer {
     connect: MongoConnectTool;
     execute: MongoExecuteTool;
     collections: MongoCollectionsTool;
+    transfer: MongoTransferTool;
   };
 
   constructor() {
@@ -52,6 +54,7 @@ class MongoMCPServer {
       connect: new MongoConnectTool(this.connectionManager),
       execute: new MongoExecuteTool(this.connectionManager),
       collections: new MongoCollectionsTool(this.connectionManager),
+      transfer: new MongoTransferTool(this.connectionManager),
     };
 
     this.setupHandlers();
@@ -124,6 +127,54 @@ class MongoMCPServer {
               required: ['action'],
             },
           },
+          {
+            name: 'mongo_transfer',
+            description: 'Import and export data between files and MongoDB collections',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                action: {
+                  type: 'string',
+                  enum: ['export', 'import'],
+                  description: 'Transfer operation type',
+                },
+                source: {
+                  type: 'object',
+                  properties: {
+                    connection: { type: 'string', description: 'Database connection name (for export)' },
+                    collection: { type: 'string', description: 'Collection name (for export)' },
+                    file: { type: 'string', description: 'File path (for import)' },
+                    format: { type: 'string', enum: ['json', 'csv'], description: 'File format' },
+                  },
+                  description: 'Source: connection+collection for export, file for import',
+                },
+                target: {
+                  type: 'object',
+                  properties: {
+                    connection: { type: 'string', description: 'Database connection name (for import)' },
+                    collection: { type: 'string', description: 'Collection name (for import)' },
+                    file: { type: 'string', description: 'File path (for export)' },
+                    format: { type: 'string', enum: ['json', 'csv'], description: 'File format' },
+                  },
+                  description: 'Target: file for export, connection+collection for import',
+                },
+                options: {
+                  type: 'object',
+                  properties: {
+                    filter: { type: 'object', description: 'Query filter for export data' },
+                    projection: { type: 'object', description: 'Field projection for export' },
+                    sort: { type: 'object', description: 'Sort specification for export' },
+                    limit: { type: 'number', description: 'Maximum documents to export/import' },
+                    skip: { type: 'number', description: 'Number of documents to skip on export' },
+                    mode: { type: 'string', enum: ['insert', 'upsert'], description: 'Import mode' },
+                    batchSize: { type: 'number', description: 'Batch size for import processing' },
+                  },
+                  description: 'Import/Export options',
+                },
+              },
+              required: ['action', 'source', 'target'],
+            },
+          },
         ],
       };
     });
@@ -143,6 +194,9 @@ class MongoMCPServer {
 
           case 'mongo_collections':
             return await this.tools.collections.execute(args);
+
+          case 'mongo_transfer':
+            return await this.tools.transfer.execute(args);
 
           default:
             throw new McpError(
@@ -194,7 +248,7 @@ class MongoMCPServer {
       await this.server.connect(transport);
 
       console.error('✅ MongoDB MCP Server started successfully');
-      console.error('📋 Available tools: mongo_connect, mongo_execute, mongo_collections');
+      console.error('📋 Available tools: mongo_connect, mongo_execute, mongo_collections, mongo_transfer');
 
       // Display available connections
       const connections = this.connectionManager.getAvailableConnections();
