@@ -91,6 +91,10 @@ class MongoMCPServer {
                   description: 'Maximum number of results to return in response (default: 100). Use to prevent overwhelming responses with large datasets.',
                   default: 100,
                 },
+                outputFile: {
+                  type: 'string',
+                  description: 'Optional: Path to save results to file instead of returning to LLM. Use for large datasets to avoid context overflow.',
+                },
               },
               required: ['command', 'connectionString'],
             },
