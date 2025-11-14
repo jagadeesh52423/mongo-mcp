@@ -14,10 +14,9 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { ConnectionManager } from './connections/manager.js';
 import { MongoMCPError } from './connections/types.js';
-import { MongoConnectTool } from './tools/connect.js';
 import { MongoExecuteTool } from './tools/execute.js';
 import { MongoCollectionsTool } from './tools/collections.js';
-import { MongoTransferTool } from './tools/transfer.js';
+// import { MongoTransferTool } from './tools/transfer.js'; // Temporarily disabled
 import { cleanupSafeResponseHandler, getSafeResponseHandler } from './utils/response-handler.js';
 import dotenv from 'dotenv';
 
@@ -28,10 +27,9 @@ class MongoMCPServer {
   private server: Server;
   private connectionManager: ConnectionManager;
   private tools: {
-    connect: MongoConnectTool;
     execute: MongoExecuteTool;
     collections: MongoCollectionsTool;
-    transfer: MongoTransferTool;
+    // transfer: MongoTransferTool; // Temporarily disabled
   };
 
   constructor() {
@@ -51,10 +49,9 @@ class MongoMCPServer {
 
     // Initialize tools
     this.tools = {
-      connect: new MongoConnectTool(this.connectionManager),
       execute: new MongoExecuteTool(this.connectionManager),
       collections: new MongoCollectionsTool(this.connectionManager),
-      transfer: new MongoTransferTool(this.connectionManager),
+      // transfer: new MongoTransferTool(this.connectionManager), // Temporarily disabled
     };
 
     this.setupHandlers();
@@ -66,20 +63,6 @@ class MongoMCPServer {
       return {
         tools: [
           {
-            name: 'mongo_connect',
-            description: 'Connect to a MongoDB environment',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                environment: {
-                  type: 'string',
-                  description: 'Environment name to connect to (e.g., "local", "dev", "prod")',
-                },
-              },
-              required: ['environment'],
-            },
-          },
-          {
             name: 'mongo_execute',
             description: 'Execute a MongoDB command using mongosh syntax',
             inputSchema: {
@@ -88,6 +71,10 @@ class MongoMCPServer {
                 command: {
                   type: 'string',
                   description: 'MongoDB command to execute (e.g., "db.users.find({})")',
+                },
+                connectionString: {
+                  type: 'string',
+                  description: 'MongoDB connection string (e.g., "mongodb://localhost:27017/mydb")',
                 },
                 timeout: {
                   type: 'number',
@@ -105,7 +92,7 @@ class MongoMCPServer {
                   default: 100,
                 },
               },
-              required: ['command'],
+              required: ['command', 'connectionString'],
             },
           },
           {
@@ -119,62 +106,19 @@ class MongoMCPServer {
                   enum: ['list', 'describe', 'indexes', 'stats'],
                   description: 'Action to perform',
                 },
+                connectionString: {
+                  type: 'string',
+                  description: 'MongoDB connection string (e.g., "mongodb://localhost:27017/mydb")',
+                },
                 collection: {
                   type: 'string',
                   description: 'Collection name (required for describe, indexes, stats)',
                 },
               },
-              required: ['action'],
+              required: ['action', 'connectionString'],
             },
           },
-          {
-            name: 'mongo_transfer',
-            description: 'Import and export data between files and MongoDB collections',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                action: {
-                  type: 'string',
-                  enum: ['export', 'import'],
-                  description: 'Transfer operation type',
-                },
-                source: {
-                  type: 'object',
-                  properties: {
-                    connection: { type: 'string', description: 'Database connection name (for export)' },
-                    collection: { type: 'string', description: 'Collection name (for export)' },
-                    file: { type: 'string', description: 'File path (for import)' },
-                    format: { type: 'string', enum: ['json', 'csv'], description: 'File format' },
-                  },
-                  description: 'Source: connection+collection for export, file for import',
-                },
-                target: {
-                  type: 'object',
-                  properties: {
-                    connection: { type: 'string', description: 'Database connection name (for import)' },
-                    collection: { type: 'string', description: 'Collection name (for import)' },
-                    file: { type: 'string', description: 'File path (for export)' },
-                    format: { type: 'string', enum: ['json', 'csv'], description: 'File format' },
-                  },
-                  description: 'Target: file for export, connection+collection for import',
-                },
-                options: {
-                  type: 'object',
-                  properties: {
-                    filter: { type: 'object', description: 'Query filter for export data' },
-                    projection: { type: 'object', description: 'Field projection for export' },
-                    sort: { type: 'object', description: 'Sort specification for export' },
-                    limit: { type: 'number', description: 'Maximum documents to export/import' },
-                    skip: { type: 'number', description: 'Number of documents to skip on export' },
-                    mode: { type: 'string', enum: ['insert', 'upsert'], description: 'Import mode' },
-                    batchSize: { type: 'number', description: 'Batch size for import processing' },
-                  },
-                  description: 'Import/Export options',
-                },
-              },
-              required: ['action', 'source', 'target'],
-            },
-          },
+          // mongo_transfer temporarily disabled
         ],
       };
     });
@@ -185,18 +129,14 @@ class MongoMCPServer {
 
       try {
         switch (name) {
-          case 'mongo_connect':
-            return await this.tools.connect.execute(args);
-
           case 'mongo_execute':
             return await this.tools.execute.execute(args);
-
 
           case 'mongo_collections':
             return await this.tools.collections.execute(args);
 
-          case 'mongo_transfer':
-            return await this.tools.transfer.execute(args);
+          // case 'mongo_transfer':
+          //   return await this.tools.transfer.execute(args);
 
           default:
             throw new McpError(
@@ -227,9 +167,6 @@ class MongoMCPServer {
 
   async start(): Promise<void> {
     try {
-      // Initialize connection manager
-      await this.connectionManager.initialize();
-
       // Initialize SafeResponseHandler with configuration from environment
       const maxSizeMB = parseInt(process.env.MAX_RESPONSE_SIZE_MB || '10', 10);
       const warningSizeMB = parseInt(process.env.WARNING_RESPONSE_SIZE_MB || '5', 10);
@@ -248,13 +185,8 @@ class MongoMCPServer {
       await this.server.connect(transport);
 
       console.error('✅ MongoDB MCP Server started successfully');
-      console.error('📋 Available tools: mongo_connect, mongo_execute, mongo_collections, mongo_transfer');
-
-      // Display available connections
-      const connections = this.connectionManager.getAvailableConnections();
-      if (connections.length > 0) {
-        console.error(`🔌 Available connections: ${connections.join(', ')}`);
-      }
+      console.error('📋 Available tools: mongo_execute, mongo_collections');
+      console.error('💡 Users provide connection strings directly to each tool (with connection pooling for performance)');
 
     } catch (error) {
       console.error('❌ Failed to start MongoDB MCP Server:', error);
@@ -267,8 +199,8 @@ class MongoMCPServer {
       // Cleanup response handler temp files
       await cleanupSafeResponseHandler();
 
-      // Disconnect from MongoDB
-      await this.connectionManager.disconnect();
+      // Cleanup connection pool
+      await this.connectionManager.cleanup();
 
       console.error('🛑 MongoDB MCP Server stopped');
     } catch (error) {
