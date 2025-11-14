@@ -13,7 +13,7 @@ export class MongoExecuteTool {
   constructor(private connectionManager: ConnectionManager) {}
 
   async execute(args: any): Promise<{ content: Array<{ type: string; text: string }> }> {
-    const { command, timeout = 30000, explain = false, maxResults = 100 } = args;
+    const { command, connectionString, timeout = 30000, explain = false, maxResults = 100 } = args;
 
     if (!command || typeof command !== 'string') {
       throw new MongoMCPError(
@@ -22,10 +22,16 @@ export class MongoExecuteTool {
       );
     }
 
+    if (!connectionString || typeof connectionString !== 'string') {
+      throw new MongoMCPError(
+        'ConnectionString parameter is required and must be a string',
+        'INVALID_ARGS'
+      );
+    }
+
     try {
-      // Ensure we're connected
-      const client = this.connectionManager.getClient();
-      const database = this.connectionManager.getCurrentDatabase();
+      // Get connection from pool
+      const { client, database } = await this.connectionManager.getClient(connectionString);
       const db = client.db(database);
 
       console.error(`🔍 Executing: ${command}`);
@@ -63,6 +69,9 @@ export class MongoExecuteTool {
         'EXECUTION_ERROR',
         error
       );
+    } finally {
+      // Release the connection back to the pool
+      this.connectionManager.releaseConnection(connectionString);
     }
   }
 
@@ -211,4 +220,5 @@ export class MongoExecuteTool {
 
     return asyncMethods.some(method => command.includes(method));
   }
+
 }

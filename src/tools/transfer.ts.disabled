@@ -12,14 +12,14 @@ import { pipeline } from 'stream/promises';
 import { Transform } from 'stream';
 
 interface TransferSource {
-  connection?: string;
+  connectionString?: string;
   collection?: string;
   file?: string;
   format?: 'json' | 'csv' | 'bson';
 }
 
 interface TransferTarget {
-  connection?: string;
+  connectionString?: string;
   collection?: string;
   file?: string;
   format?: 'json' | 'csv' | 'bson';

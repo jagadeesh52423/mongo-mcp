@@ -10,11 +10,18 @@ export class MongoCollectionsTool {
   constructor(private connectionManager: ConnectionManager) {}
 
   async execute(args: any): Promise<{ content: Array<{ type: string; text: string }> }> {
-    const { action, collection } = args;
+    const { action, collection, connectionString } = args;
 
     if (!action || typeof action !== 'string') {
       throw new MongoMCPError(
         'Action parameter is required and must be a string',
+        'INVALID_ARGS'
+      );
+    }
+
+    if (!connectionString || typeof connectionString !== 'string') {
+      throw new MongoMCPError(
+        'ConnectionString parameter is required and must be a string',
         'INVALID_ARGS'
       );
     }
@@ -35,9 +42,8 @@ export class MongoCollectionsTool {
     }
 
     try {
-      // Ensure we're connected
-      const client = this.connectionManager.getClient();
-      const database = this.connectionManager.getCurrentDatabase();
+      // Get connection from pool
+      const { client, database } = await this.connectionManager.getClient(connectionString);
       const db = client.db(database);
 
       console.error(`🔍 Executing ${action} ${collection ? `on ${collection}` : ''}`);
@@ -79,13 +85,14 @@ export class MongoCollectionsTool {
         'COLLECTIONS_ERROR',
         error
       );
+    } finally {
+      // Release the connection back to the pool
+      this.connectionManager.releaseConnection(connectionString);
     }
   }
 
   private async listCollections(db: any): Promise<string> {
     const collections = await db.listCollections().toArray();
-    const state = this.connectionManager.getConnectionState();
-    const currentConnection = state.currentConnection;
 
     let response = `📚 **Collections in database '${db.databaseName}'**\n\n`;
 
@@ -104,14 +111,6 @@ export class MongoCollectionsTool {
 
       if (coll.type && coll.type !== 'collection') {
         response += `   - Type: ${coll.type}\n`;
-      }
-
-      // Add documentation if available from connection config
-      if (currentConnection) {
-        const connection = this.connectionManager.getConnection(currentConnection);
-        if (connection?.collections?.[coll.name]) {
-          response += `   - Description: ${connection.collections[coll.name]}\n`;
-        }
       }
 
       response += '\n';
@@ -162,15 +161,7 @@ export class MongoCollectionsTool {
         response += `⚠️ **No documents found** in this collection.\n\n`;
       }
 
-      // Add documentation if available
-      const state = this.connectionManager.getConnectionState();
-      const currentConnection = state.currentConnection;
-      if (currentConnection) {
-        const connection = this.connectionManager.getConnection(currentConnection);
-        if (connection?.collections?.[collectionName]) {
-          response += `**Description**: ${connection.collections[collectionName]}\n\n`;
-        }
-      }
+      // Skip documentation section since we're not using config files anymore
 
       response += `💡 **Useful Commands**:\n`;
       response += `- \`mongo_execute\` with "db.${collectionName}.find({})" to query documents\n`;
