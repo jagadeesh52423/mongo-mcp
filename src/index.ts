@@ -16,6 +16,7 @@ import { ConnectionManager } from './connections/manager.js';
 import { MongoMCPError } from './connections/types.js';
 import { MongoExecuteTool } from './tools/execute.js';
 import { MongoCollectionsTool } from './tools/collections.js';
+import { MongoDescribeTool } from './tools/describe.js';
 // import { MongoTransferTool } from './tools/transfer.js'; // Temporarily disabled
 import { cleanupSafeResponseHandler, getSafeResponseHandler } from './utils/response-handler.js';
 import dotenv from 'dotenv';
@@ -29,6 +30,7 @@ class MongoMCPServer {
   private tools: {
     execute: MongoExecuteTool;
     collections: MongoCollectionsTool;
+    describe: MongoDescribeTool;
     // transfer: MongoTransferTool; // Temporarily disabled
   };
 
@@ -51,6 +53,7 @@ class MongoMCPServer {
     this.tools = {
       execute: new MongoExecuteTool(this.connectionManager),
       collections: new MongoCollectionsTool(this.connectionManager),
+      describe: new MongoDescribeTool(this.connectionManager),
       // transfer: new MongoTransferTool(this.connectionManager), // Temporarily disabled
     };
 
@@ -122,6 +125,43 @@ class MongoMCPServer {
               required: ['action', 'connectionString'],
             },
           },
+          {
+            name: 'mongo_describe',
+            description: 'Analyze collection schema by sampling documents and extracting field information',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                connectionString: {
+                  type: 'string',
+                  description: 'MongoDB connection string (e.g., "mongodb://localhost:27017/mydb")',
+                },
+                collection: {
+                  type: 'string',
+                  description: 'Collection name to analyze',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Number of documents to sample for analysis (0 = all documents, default: 1000)',
+                  default: 1000,
+                },
+                depth: {
+                  type: 'number',
+                  description: 'Maximum depth for nested field analysis (default: 5)',
+                  default: 5,
+                },
+                outputFile: {
+                  type: 'string',
+                  description: 'Optional: Path to save sample data for debugging (not returned to LLM)',
+                },
+                progressive: {
+                  type: 'boolean',
+                  description: 'Use progressive sampling for large collections (default: true)',
+                  default: true,
+                },
+              },
+              required: ['connectionString', 'collection'],
+            },
+          },
           // mongo_transfer temporarily disabled
         ],
       };
@@ -138,6 +178,9 @@ class MongoMCPServer {
 
           case 'mongo_collections':
             return await this.tools.collections.execute(args);
+
+          case 'mongo_describe':
+            return await this.tools.describe.execute(args);
 
           // case 'mongo_transfer':
           //   return await this.tools.transfer.execute(args);
@@ -189,7 +232,7 @@ class MongoMCPServer {
       await this.server.connect(transport);
 
       console.error('✅ MongoDB MCP Server started successfully');
-      console.error('📋 Available tools: mongo_execute, mongo_collections');
+      console.error('📋 Available tools: mongo_execute, mongo_collections, mongo_describe');
       console.error('💡 Users provide connection strings directly to each tool (with connection pooling for performance)');
 
     } catch (error) {
